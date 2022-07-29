@@ -11,7 +11,7 @@ import {
   Image,
   ActivityIndicator,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import { categories } from "./categories";
 import { dbFetch } from './dbFetch';
 
@@ -28,9 +28,17 @@ export interface IMarker {
 export default function Home() {
   const [markers, setMarkers] = useState<IMarker[]>([]);
   const [filter, setFilter] = useState("");
+  const [position, setPosition] = useState({
+    latitude: -23.54157184424356,
+    longitude: -46.60749944090844,
+  });
+  const [destination, setDestination] = useState({
+    latitude: -23.54157184424356,
+    longitude: -46.60749944090844,
+  });
+  const [visible, setVisible] = useState(false);
 
   const navigation = useNavigation();
-
   const filteredData = markers.filter((m) => m.category === filter);
 
   useEffect(() => {
@@ -60,6 +68,10 @@ export default function Home() {
           longitudeDelta: 0.0421,
         }}
       >
+        <Marker
+          pinColor='green'
+          coordinate={position}
+        />
         {(filter ? filteredData : markers).map((item) => {
           return (
             <Marker
@@ -69,11 +81,25 @@ export default function Home() {
                 longitude: item.longitude,
               }}
               onPress={() => {
-                navigation.navigate("Detail", item);
+                setDestination({
+                  latitude: item.latitude,
+                  longitude: item.longitude,
+                });
+                setVisible(true);
               }}
             />
           );
         })}
+        {
+          visible ?
+            <Polyline
+              coordinates={[position, destination]}
+              strokeColor="#000" // fallback for when `strokeColors` is not supported by the map-provider
+              strokeColors={['#7F0000']}
+              strokeWidth={6}
+            />
+            : null
+        }
       </MapView>
 
       <View style={styles.categoryContainer}>

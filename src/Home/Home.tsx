@@ -1,5 +1,4 @@
-import { useNavigation } from "@react-navigation/native";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,39 +10,34 @@ import {
   Image,
   ActivityIndicator,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
-import { categories } from "./categories";
-import { dbFetch } from './dbFetch';
-
-export interface IMarker {
-  category: string;
-  contact: string;
-  description: string;
-  id: string;
-  latitude: number;
-  longitude: number;
-  name: string;
-}
+import MapView, { Marker } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
+import { ICoordinate, IMarker } from "../helpers/interfaces";
+import { categories } from "../services/categories";
+import { dbFetch } from '../services/dbFetch';
 
 export default function Home() {
-  const [markers, setMarkers] = useState<IMarker[]>([]);
-  const [filter, setFilter] = useState("");
-  const [position, setPosition] = useState({
-    latitude: -23.54157184424356,
-    longitude: -46.60749944090844,
-  });
-  const [destination, setDestination] = useState({
-    latitude: -23.54157184424356,
-    longitude: -46.60749944090844,
-  });
-  const [visible, setVisible] = useState(false);
 
-  const navigation = useNavigation();
-  const filteredData = markers.filter((m) => m.category === filter);
+  const [markers, setMarkers] = useState<IMarker[]>([]);
 
   useEffect(() => {
     setMarkers(dbFetch);
-  }, []);
+  }, [dbFetch])
+
+  const [filter, setFilter] = useState("");
+  const position: ICoordinate = {
+    latitude: -23.54157184424356,
+    longitude: -46.60749944090844,
+  };
+  const [destination, setDestination] = useState<ICoordinate>(position);
+  const [distance, setDistance] = useState<number>();
+  const [showDirections, setShowDirections] = useState<boolean>(false);
+  const [showCallout, setShowCallout] = useState<boolean>(false);
+
+  const myAppKey = "YourAPIKey";
+  const mapEl = useRef<MapView | null>();
+
+  const filteredData = markers.filter((m) => m.category === filter);
 
   if (!markers || markers.length === 0) {
     return <ActivityIndicator />;
@@ -57,16 +51,16 @@ export default function Home() {
           Encontre no mapa um ponto do comércio local
         </Text>
       </View>
-
       <MapView
         style={styles.map}
         provider="google"
         initialRegion={{
-          latitude: markers[0].latitude,
-          longitude: markers[0].longitude,
+          latitude: position.latitude,
+          longitude: position.longitude,
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         }}
+        ref={ref => { mapEl.current = ref as MapView }}
       >
         <Marker
           pinColor='green'
@@ -85,23 +79,41 @@ export default function Home() {
                   latitude: item.latitude,
                   longitude: item.longitude,
                 });
-                setVisible(true);
+                setShowDirections(true);
+                setShowCallout(true);
               }}
             />
           );
         })}
-        {
-          visible ?
-            <Polyline
-              coordinates={[position, destination]}
-              strokeColor="#000" // fallback for when `strokeColors` is not supported by the map-provider
-              strokeColors={['#7F0000']}
-              strokeWidth={6}
-            />
-            : null
+        {showDirections &&
+          <MapViewDirections
+            origin={position}
+            destination={destination}
+            apikey={myAppKey}
+            strokeWidth={4}
+            strokeColor="#111111"
+
+            onReady={result => {
+              setDistance(result.distance);
+              mapEl.current?.fitToCoordinates(
+                result.coordinates, {
+                edgePadding: {
+                  top: 50,
+                  right: 50,
+                  bottom: 50,
+                  left: 50,
+                }
+              }
+              )
+            }}
+          />
         }
       </MapView>
-
+      {showCallout &&
+        <View style={styles.calloutView}>
+          <Text style={styles.calloutText}>Total distance: {distance} Km</Text>
+        </View>
+      }
       <View style={styles.categoryContainer}>
         <FlatList
           data={categories}
@@ -115,6 +127,10 @@ export default function Home() {
             <TouchableOpacity
               onPress={() => {
                 setFilter(filter === item.key ? "" : item.key);
+                setDestination(position);
+                setShowDirections(false);
+                setShowCallout(false);
+
               }}
               style={[
                 styles.categoryItem,
@@ -177,5 +193,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#322153",
+  },
+  calloutView: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#322153",
+    padding: 10,
+  },
+  calloutText: {
+    textAlign: "center",
+    fontWeight: "500",
+    fontSize: 18,
+    color: "#6c6c80",
   },
 });
